@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0f1e">
+<title>FERMI — 桁で当てるざっくりクイズ</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background: radial-gradient(ellipse at center, #16203a 0%, #0e1528 60%, #0a0f1e 100%);
+    color: #fff;
+    overflow-x: hidden;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .app { min-height: 100dvh; display: flex; flex-direction: column; padding: 20px; max-width: 720px; margin: 0 auto; width: 100%; }
+
+  /* Screens */
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* Title */
+  .title { text-align: center; padding: 32px 20px 24px; }
+  .title h1 {
+    font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+    font-size: clamp(36px, 12vw, 64px);
+    margin: 0; letter-spacing: -0.03em; font-weight: 900;
+    background: linear-gradient(180deg, #fef9c3 0%, #facc15 55%, #ca8a04 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .title .subtitle { font-size: 11px; letter-spacing: 6px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+
+  /* Inputs */
+  .panel {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(250,204,21,0.28);
+    border-radius: 16px;
+    padding: 20px; margin-bottom: 14px;
+    backdrop-filter: blur(8px);
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: 3px; color: #fde047; font-weight: 600; }
+  .panel input {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #fff; font-size: 16px; outline: none;
+    transition: all .2s;
+  }
+  .panel input:focus { border-color: #facc15; background: rgba(255,255,255,0.12); }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    border: none; border-radius: 14px;
+    padding: 16px;
+    font-size: 16px; font-weight: 700; letter-spacing: 4px;
+    cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(180deg, #fde047 0%, #ca8a04 100%);
+    color: #292004;
+    box-shadow: 0 6px 18px rgba(202,138,4,0.45);
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    letter-spacing: 2px;
+  }
+  .btn + .btn { margin-top: 10px; }
+
+  /* Player list */
+  .room-info {
+    text-align: center; margin: 12px 0 20px;
+    font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.55);
+  }
+  .room-code {
+    display: inline-block; margin-top: 4px;
+    font-family: 'Inter', system-ui, monospace;
+    font-size: 32px; font-weight: 900; letter-spacing: 6px;
+    color: #fde047;
+  }
+  .player-list { display: flex; flex-direction: column; gap: 8px; }
+  .player-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    transition: all .25s;
+  }
+  .player-row.you { border-color: #facc15; background: rgba(250,204,21,0.1); }
+  .player-row.host .badge { background: rgba(250,204,21,0.3); color: #fef9c3; }
+  .player-row .name { font-weight: 600; font-size: 15px; }
+  .player-row .badge {
+    font-size: 9px; padding: 3px 8px; border-radius: 999px;
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+    letter-spacing: 2px; font-weight: 700;
+  }
+  .status-line {
+    text-align: center; margin: 12px 0 16px;
+    font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.55);
+  }
+  .footer-actions { margin-top: auto; padding-top: 12px; }
+  .version-tag { margin-top: 14px; text-align: center; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.35); }
+
+  /* ---------- Guess screen ---------- */
+  .guess-top { text-align: center; margin-bottom: 8px; }
+  .guess-label {
+    font-size: 10px; letter-spacing: 5px; color: rgba(255,255,255,0.5);
+    margin: 6px 0 10px;
+  }
+  .guess-q {
+    font-size: clamp(18px, 5.5vw, 26px); font-weight: 800;
+    line-height: 1.4;
+  }
+  .guess-timer {
+    margin-top: 8px;
+    font-family: 'Inter', system-ui, monospace;
+    font-size: 13px; letter-spacing: 2px; color: rgba(255,255,255,0.6);
+  }
+  .guess-timer.hurry { color: #fca5a5; font-weight: 800; }
+
+  .guess-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .num-readout {
+    text-align: center;
+    font-family: 'Inter', "Hiragino Sans", system-ui, sans-serif;
+    font-size: clamp(40px, 13vw, 72px);
+    font-weight: 900; line-height: 1.15;
+    color: #fef08a;
+    text-shadow: 0 0 32px rgba(250,204,21,0.3);
+    word-break: break-all;
+    min-height: 1.2em;
+  }
+  .num-readout .unit { font-size: 0.45em; color: rgba(255,255,255,0.6); margin-left: 4px; }
+  .num-input {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(250,204,21,0.35);
+    border-radius: 12px;
+    padding: 14px;
+    color: #fff; font-size: 22px; text-align: center; outline: none;
+    font-family: 'Inter', system-ui, monospace;
+  }
+  .num-input:focus { border-color: #facc15; background: rgba(255,255,255,0.12); }
+  .mult-row { display: flex; gap: 10px; }
+  .mult-btn {
+    flex: 1; padding: 14px;
+    border-radius: 12px; border: 1px solid rgba(250,204,21,0.4);
+    background: rgba(250,204,21,0.12);
+    color: #fef08a; font-size: 17px; font-weight: 900;
+    cursor: pointer;
+    font-family: 'Inter', system-ui, monospace;
+  }
+  .mult-btn:active { background: rgba(250,204,21,0.3); }
+  .locked-note {
+    text-align: center;
+    font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.6);
+  }
+  .guess-done .num-readout { color: rgba(254,240,138,0.5); text-shadow: none; }
+  .guess-status {
+    text-align: center; margin-top: 14px;
+    font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.6);
+  }
+
+  /* ---------- Reveal ---------- */
+  .round-label {
+    text-align: center;
+    font-size: 11px; letter-spacing: 5px; color: rgba(255,255,255,0.55);
+    margin: 12px 0 8px;
+  }
+  .reveal-q {
+    text-align: center; font-size: 15px; font-weight: 700;
+    color: rgba(255,255,255,0.85); line-height: 1.45;
+    margin-bottom: 6px;
+  }
+  .answer-strip { text-align: center; margin-bottom: 4px; }
+  .answer-strip .answer-num {
+    font-family: 'Inter', "Hiragino Sans", system-ui, sans-serif;
+    font-size: clamp(36px, 12vw, 60px);
+    font-weight: 900; color: #fde047; line-height: 1.1;
+    text-shadow: 0 0 24px rgba(250,204,21,0.4);
+    animation: pop .25s ease-out;
+    word-break: break-all;
+  }
+  .answer-strip .unit { font-size: 0.45em; color: rgba(255,255,255,0.6); margin-left: 4px; }
+  @keyframes pop {
+    0% { transform: scale(0.6); }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  .answer-note {
+    text-align: center; font-size: 12px; color: rgba(255,255,255,0.6);
+    margin-bottom: 10px;
+  }
+  .verdict-line {
+    text-align: center;
+    font-size: 15px; font-weight: 800;
+    margin: 6px 0 14px;
+  }
+  .verdict-line.draw { color: #d1d5db; }
+
+  .rank-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .rank-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+  }
+  .rank-row.you { border-color: #facc15; background: rgba(250,204,21,0.08); }
+  .rank-row.loser { border-color: rgba(255,107,107,0.6); background: rgba(255,107,107,0.1); }
+  .rank-row .name { flex: 1; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-row .guess-val {
+    font-family: 'Inter', "Hiragino Sans", system-ui, sans-serif;
+    font-size: 15px; font-weight: 800; color: #fef08a;
+  }
+  .rank-row .factor {
+    font-family: 'Inter', system-ui, monospace;
+    font-size: 11px; color: rgba(255,255,255,0.55);
+    min-width: 52px; text-align: right;
+  }
+  .rank-row .factor.perfect { color: #fde047; font-weight: 800; }
+  .rank-row .beer { font-size: 18px; }
+  .abstain-row {
+    text-align: center; font-size: 12px; color: #fca5a5;
+    margin-bottom: 12px; letter-spacing: 1px;
+  }
+
+  .waiting-host {
+    text-align: center;
+    font-size: 12px; letter-spacing: 3px;
+    color: rgba(255,255,255,0.55);
+    padding: 18px;
+    border: 1px dashed rgba(250,204,21,0.3);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.2);
+    margin-bottom: 14px;
+  }
+  .waiting-host b { color: #fde047; }
+
+  /* Rules overlay */
+  .btn-link-text {
+    display: block; margin: 8px auto 0;
+    background: none; border: none; color: rgba(253,224,71,0.85);
+    font-size: 12px; letter-spacing: 2px; cursor: pointer; text-decoration: underline;
+  }
+  .rules-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    display: none; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 40px 20px;
+  }
+  .rules-overlay.show { display: flex; }
+  .rules-card {
+    background: linear-gradient(180deg, #141c33 0%, #0a0f1e 100%);
+    border: 1px solid rgba(250,204,21,0.5);
+    border-radius: 16px;
+    padding: 24px 22px;
+    max-width: 520px; width: 100%;
+    color: #fff;
+  }
+  .rules-card h2 { margin: 0 0 14px; color: #fde047; letter-spacing: 4px; font-size: 16px; }
+  .rules-card dl { margin: 0; font-size: 13px; line-height: 1.6; }
+  .rules-card dt { color: #fde047; font-weight: 700; margin-top: 12px; letter-spacing: 2px; }
+  .rules-card dd { margin: 4px 0 0; color: rgba(255,255,255,0.85); }
+  .rules-card .close-hint { text-align: center; margin-top: 18px; font-size: 10px; letter-spacing: 4px; color: rgba(255,255,255,0.4); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(202,138,4,0.95); color: #fff;
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 14px; z-index: 1000;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== ENTER ===== -->
+  <div class="screen active" id="enterScreen">
+    <div class="title">
+      <h1>FERMI</h1>
+      <div class="subtitle">桁で当てる ざっくりクイズ</div>
+    </div>
+    <div class="panel">
+      <h2>あなたの名前</h2>
+      <input id="nameInput" type="text" placeholder="プレイヤー名" maxlength="12" autocomplete="off">
+    </div>
+    <div class="panel">
+      <h2>ルームコード</h2>
+      <input id="roomInput" type="text" placeholder="既存ルームのコードを入力（既定値は新規ルーム）" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+      <div style="margin-top:8px; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.45);">3〜10人</div>
+    </div>
+    <button class="btn btn-primary" id="enterBtn">JOIN</button>
+    <button class="btn-link-text" id="rulesBtn">ルールを見る</button>
+    <div class="version-tag">v0.1.0 · 全300問</div>
+  </div>
+
+  <!-- ===== RULES OVERLAY ===== -->
+  <div class="rules-overlay" id="rulesOverlay">
+    <div class="rules-card">
+      <h2>RULES</h2>
+      <dl>
+        <dt>進行</dt>
+        <dd>「月まで何km？」みたいな数字クイズが出る。全員が<b>こっそり予想を提出</b>（制限75秒）。</dd>
+
+        <dt>判定は「桁」</dt>
+        <dd>正解からの差は<b>倍率</b>で測る。正解38万kmに対して「4万km」と「380万km」はどちらも10倍ズレで同じ負け方。ざっくり桁が合っていれば強い。</dd>
+
+        <dt>結果</dt>
+        <dd>一斉オープン! 正解から<b>一番ズレた人が1杯</b>。一番近かった人には 👑。</dd>
+
+        <dt>罰 (各1杯)</dt>
+        <dd>• 正解から<b>一番遠かった人</b>（同率なら全員）</dd>
+        <dd>• <b>時間切れ</b>で提出しなかった人</dd>
+
+        <dt>問題</dt>
+        <dd>地理・宇宙・動物・歴史・お酒など全300問。答えが変わらない事実だけを収録。</dd>
+      </dl>
+      <div class="close-hint">タップで閉じる</div>
+    </div>
+  </div>
+
+  <!-- ===== LOBBY ===== -->
+  <div class="screen" id="lobbyScreen">
+    <div class="room-info">
+      ROOM CODE
+      <div class="room-code" id="roomCodeDisplay">------</div>
+    </div>
+    <div class="panel">
+      <h2>プレイヤー <span id="playerCountLabel" style="opacity:.7"></span></h2>
+      <div class="player-list" id="lobbyPlayerList"></div>
+    </div>
+    <div class="status-line" id="lobbyStatus"></div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="startBtn" style="display:none">START</button>
+      <button class="btn btn-ghost" id="leaveBtn">退出</button>
+    </div>
+  </div>
+
+  <!-- ===== GUESS ===== -->
+  <div class="screen" id="guessScreen">
+    <div class="guess-top">
+      <div class="guess-label">QUESTION <span id="guessRoundNum">1</span></div>
+      <div class="guess-q" id="guessQuestion"></div>
+      <div class="guess-timer" id="guessTimer"></div>
+    </div>
+    <div class="guess-body" id="guessBody">
+      <div class="num-readout" id="numReadout"></div>
+      <input class="num-input" id="numInput" type="text" inputmode="decimal" placeholder="数字を入力" autocomplete="off">
+      <div class="mult-row" id="multRow">
+        <button class="mult-btn" id="div10Btn">÷10</button>
+        <button class="mult-btn" id="mul10Btn">×10</button>
+      </div>
+      <button class="btn btn-primary" id="lockBtn">LOCK IN</button>
+      <div class="locked-note" id="lockedNote" style="display:none">提出済み — 変更はできない</div>
+    </div>
+    <div class="guess-status" id="guessStatus"></div>
+  </div>
+
+  <!-- ===== REVEAL ===== -->
+  <div class="screen" id="revealScreen">
+    <div class="round-label">QUESTION <span id="revealRoundNum">1</span> ANSWER</div>
+    <div class="reveal-q" id="revealQuestion"></div>
+    <div class="answer-strip"><span class="answer-num" id="answerNum"></span></div>
+    <div class="answer-note" id="answerNote"></div>
+    <div class="verdict-line" id="verdictLine"></div>
+    <div class="rank-list" id="rankList"></div>
+    <div class="abstain-row" id="abstainRow" style="display:none"></div>
+    <div class="panel">
+      <h2>累計</h2>
+      <div class="player-list" id="revealPlayerList"></div>
+    </div>
+    <div class="footer-actions">
+      <button class="btn btn-primary" id="nextBtn" style="display:none">NEXT QUESTION</button>
+      <div class="waiting-host" id="waitingHostResult" style="display:none">ホストの次の問題待ち</div>
+      <button class="btn btn-ghost" id="leaveBtn2">退出</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ===== State =====
+const PHASES = { LOBBY: "lobby", GUESS: "guess", REVEAL: "reveal" };
+const STORAGE_KEY = "fermi_v1";
+const MAX_RECONNECT = 8;
+let ws = null;
+let serverState = null;
+let myInfo = { name: "", room: "" };
+let manualClose = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let heartbeatTimer = null;
+let lastServerMessageAt = 0;
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const HEARTBEAT_TIMEOUT_MS = 20_000;
+
+let countdownTimer = null;
+let localRound = -1;
+let lastRevealedRound = -1;
+
+// Wake Lock
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!wakeLock && ws) requestWakeLock();
+  if (myInfo.room && myInfo.name && !manualClose) {
+    if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+      forceReconnect("resume");
+    }
+  }
+});
+
+function forceReconnect(reason) {
+  if (manualClose) return;
+  if (reconnectTimer) return;
+  if (ws) {
+    const old = ws; ws = null;
+    try { old.close(4001, reason || "forced"); } catch {}
+  }
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect(myInfo.name, myInfo.room);
+  }, 200);
+}
+
+// Stable per-browser-profile id
+function getOrCreateClientId() {
+  const KEY = "fermi_clientId_v1";
+  let id = "";
+  try { id = localStorage.getItem(KEY) || ""; } catch {}
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) {
+    id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : Array.from({length: 32}, () => "0123456789abcdef"[Math.floor(Math.random()*16)]).join("");
+    try { localStorage.setItem(KEY, id); } catch {}
+  }
+  return id;
+}
+const CLIENT_ID = getOrCreateClientId();
+
+const FUNNY_NAMES = [
+  "酒豪", "ザル", "ベロベロ", "ほろ酔い", "下戸", "二日酔い", "顔面紅葉", "記憶喪失",
+  "翌日後悔", "終電マン", "ウーロン茶", "一気のヌシ", "顔面真っ赤", "介錯人", "ノンアル王", "酔拳",
+];
+function randomFunnyName() { return FUNNY_NAMES[Math.floor(Math.random() * FUNNY_NAMES.length)]; }
+function randomRoomCode() {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join("");
+}
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  document.getElementById("nameInput").value = saved.name || randomFunnyName();
+} catch {
+  document.getElementById("nameInput").value = randomFunnyName();
+}
+document.getElementById("roomInput").value = randomRoomCode();
+
+// ===== DOM helpers =====
+function $(id) { return document.getElementById(id); }
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+  $(name + "Screen").classList.add("active");
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function showToast(msg, ms = 2500) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), ms);
+}
+
+// 38万 / 1.5億 / 4300京 style formatting so huge numbers stay readable.
+function formatJp(n) {
+  if (!Number.isFinite(n)) return "?";
+  const UNITS = [
+    [1e16, "京"],
+    [1e12, "兆"],
+    [1e8, "億"],
+    [1e4, "万"],
+  ];
+  for (const [base, label] of UNITS) {
+    if (n >= base) {
+      let v = n / base;
+      let s = v >= 100 ? Math.round(v).toLocaleString()
+        : (Math.round(v * 100) / 100).toString();
+      return s + label;
+    }
+  }
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return (Math.round(n * 1000) / 1000).toString();
+}
+
+// ===== Connection =====
+function connect(name, room) {
+  myInfo.name = name; myInfo.room = room;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ name })); } catch {}
+  manualClose = false;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws`
+    + `?room=${encodeURIComponent(room)}`
+    + `&name=${encodeURIComponent(name)}`
+    + `&clientId=${encodeURIComponent(CLIENT_ID)}`;
+
+  const sock = new WebSocket(url);
+  ws = sock;
+
+  sock.addEventListener("open", () => {
+    if (ws !== sock) return;
+    reconnectAttempts = 0;
+    lastServerMessageAt = Date.now();
+    startHeartbeat();
+    requestWakeLock();
+    $("roomCodeDisplay").textContent = room;
+    try { sock.send(JSON.stringify({ type: "hello" })); } catch {}
+  });
+
+  sock.addEventListener("message", (e) => {
+    if (ws !== sock) return;
+    lastServerMessageAt = Date.now();
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === "state") {
+      serverState = msg.state;
+      onStateUpdate();
+    }
+  });
+
+  sock.addEventListener("close", (e) => {
+    const isCurrent = ws === sock;
+    if (isCurrent) {
+      stopHeartbeat();
+      ws = null;
+    }
+    if (e.code === 4002) {
+      if (isCurrent) {
+        manualClose = true;
+        reconnectAttempts = 0;
+        showToast("別のタブで開かれました");
+        showScreen("enter");
+      }
+      return;
+    }
+    if (e.code === 4030 || e.code === 4023 || e.code === 1008) {
+      if (isCurrent) {
+        manualClose = true;
+        reconnectAttempts = 0;
+        showToast(e.code === 4030 ? "ルームが満員です"
+          : e.code === 4023 ? "出題中で参加できません"
+          : "ルームに入れませんでした");
+        showScreen("enter");
+      }
+      return;
+    }
+    if (manualClose) {
+      if (isCurrent) {
+        reconnectAttempts = 0;
+        showScreen("enter");
+      }
+      return;
+    }
+    if (isCurrent && myInfo.room && myInfo.name && reconnectAttempts < MAX_RECONNECT) {
+      reconnectAttempts++;
+      const backoff = Math.min(500 * Math.pow(2, reconnectAttempts - 1), 4000);
+      showToast(`再接続中... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect(myInfo.name, myInfo.room);
+      }, backoff);
+      return;
+    }
+    if (isCurrent) {
+      showToast("接続が切れました");
+      showScreen("enter");
+      reconnectAttempts = 0;
+    }
+  });
+
+  sock.addEventListener("error", () => {});
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    return true;
+  }
+  return false;
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try { ws.send(JSON.stringify({ type: "ping" })); } catch {}
+    if (Date.now() - lastServerMessageAt > HEARTBEAT_TIMEOUT_MS) {
+      forceReconnect("heartbeat-timeout");
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+function disconnect() {
+  manualClose = true;
+  reconnectAttempts = 0;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  stopHeartbeat();
+  stopCountdown();
+  if (ws) { try { ws.close(1000, "user disconnect"); } catch {} ws = null; }
+  if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
+  showScreen("enter");
+}
+
+// ===== State handler =====
+function onStateUpdate() {
+  if (!serverState) return;
+  if (serverState.phase !== PHASES.GUESS) stopCountdown();
+  switch (serverState.phase) {
+    case PHASES.LOBBY: renderLobby(); break;
+    case PHASES.GUESS: renderGuess(); break;
+    case PHASES.REVEAL: renderReveal(); break;
+  }
+}
+
+// ===== Lobby =====
+function renderLobby() {
+  showScreen("lobby");
+  const players = serverState.players || [];
+  $("playerCountLabel").textContent = `(${players.length}/10)`;
+  $("lobbyPlayerList").innerHTML = players.map(p => `
+    <div class="player-row ${p.isYou ? "you" : ""} ${p.id === serverState.hostId ? "host" : ""}">
+      <span class="name">${escapeHtml(p.name)}${p.isYou ? " (あなた)" : ""}</span>
+      <span class="badge">${p.id === serverState.hostId ? "HOST" : ""}${p.drinkCount > 0 ? " · " + p.drinkCount + "杯" : ""}</span>
+    </div>
+  `).join("");
+
+  const isHost = serverState.you === serverState.hostId;
+  const startBtn = $("startBtn");
+  const status = $("lobbyStatus");
+  if (isHost) {
+    startBtn.style.display = "";
+    if (players.length < 3) {
+      startBtn.disabled = true;
+      status.textContent = "3人以上で開始できます";
+    } else {
+      startBtn.disabled = false;
+      status.textContent = "全員揃ったらSTART";
+    }
+  } else {
+    startBtn.style.display = "none";
+    status.textContent = "ホストの開始を待っています";
+  }
+}
+
+// ===== Guess =====
+function stopCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+}
+function updateCountdown() {
+  if (!serverState || serverState.phase !== PHASES.GUESS || !serverState.guessDeadline) return;
+  const remain = Math.max(0, Math.ceil((serverState.guessDeadline - Date.now()) / 1000));
+  const el = $("guessTimer");
+  el.textContent = `残り ${remain}秒`;
+  el.classList.toggle("hurry", remain <= 15);
+}
+
+function parseGuess() {
+  const raw = $("numInput").value.trim().replace(/,/g, "");
+  if (!raw) return null;
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v <= 0 || v > 1e21) return null;
+  return v;
+}
+
+function updateReadout() {
+  const unit = (serverState && serverState.topic && serverState.topic.u) || "";
+  const v = parseGuess();
+  $("numReadout").innerHTML = v === null
+    ? `<span style="opacity:.35">?</span><span class="unit">${escapeHtml(unit)}</span>`
+    : `${escapeHtml(formatJp(v))}<span class="unit">${escapeHtml(unit)}</span>`;
+}
+
+function renderGuess() {
+  showScreen("guess");
+  const topic = serverState.topic || { q: "", u: "" };
+  $("guessRoundNum").textContent = serverState.round;
+  $("guessQuestion").textContent = topic.q;
+
+  // New question → clear the input.
+  if (serverState.round !== localRound) {
+    localRound = serverState.round;
+    $("numInput").value = "";
+  }
+
+  const locked = serverState.myGuess !== null;
+  if (locked) $("numInput").value = String(serverState.myGuess); // restored on reconnect too
+  $("guessBody").classList.toggle("guess-done", locked);
+  $("numInput").disabled = locked;
+  $("lockBtn").style.display = locked ? "none" : "";
+  $("multRow").style.display = locked ? "none" : "";
+  $("lockedNote").style.display = locked ? "" : "none";
+  updateReadout();
+
+  const players = serverState.players || [];
+  const guessedCount = players.filter(p => p.guessed).length;
+  $("guessStatus").textContent = locked
+    ? `提出済み ${guessedCount}/${players.length} — 全員の提出を待っています`
+    : `こっそり予想しよう（提出済み ${guessedCount}/${players.length}）`;
+
+  if (!countdownTimer) {
+    updateCountdown();
+    countdownTimer = setInterval(updateCountdown, 250);
+  }
+}
+
+$("numInput").addEventListener("input", updateReadout);
+$("mul10Btn").addEventListener("click", () => {
+  const v = parseGuess();
+  if (v === null) return;
+  const next = v * 10;
+  if (next > 1e21) return;
+  $("numInput").value = Number.isInteger(next) ? String(next) : String(Math.round(next * 1000) / 1000);
+  updateReadout();
+});
+$("div10Btn").addEventListener("click", () => {
+  const v = parseGuess();
+  if (v === null) return;
+  const next = v / 10;
+  $("numInput").value = Number.isInteger(next) ? String(next) : String(Math.round(next * 1000) / 1000);
+  updateReadout();
+});
+$("lockBtn").addEventListener("click", () => {
+  if (!serverState || serverState.phase !== PHASES.GUESS) return;
+  if (serverState.myGuess !== null) return;
+  const v = parseGuess();
+  if (v === null) { showToast("0より大きい数字を入れてください"); return; }
+  send({ type: "guess", value: v });
+  // Optimistic lock; the next state broadcast confirms it.
+  serverState.myGuess = v;
+  renderGuess();
+  if (navigator.vibrate) { try { navigator.vibrate(40); } catch {} }
+});
+
+// ===== Reveal =====
+function renderReveal() {
+  showScreen("reveal");
+  const result = serverState.result;
+  if (!result) return;
+  const qu = result.question || { q: "", a: 0, u: "", n: "" };
+
+  $("revealRoundNum").textContent = result.round;
+  $("revealQuestion").textContent = qu.q;
+  $("answerNum").innerHTML = `${escapeHtml(formatJp(qu.a))}<span class="unit">${escapeHtml(qu.u || "")}</span>`;
+  $("answerNote").textContent = qu.n || "";
+
+  const playersById = new Map(serverState.players.map(p => [p.id, p]));
+  const nameOf = id => {
+    const p = playersById.get(id);
+    return p ? p.name : "(退出済み)";
+  };
+
+  const verdict = $("verdictLine");
+  if (result.outcome === "draw") {
+    verdict.className = "verdict-line draw";
+    verdict.textContent = result.entries.length < 2 ? "提出が足りず引き分け" : "全員同じズレ！引き分けでノーカウント";
+  } else {
+    const loserNames = result.entries.filter(e => e.loser).map(e => nameOf(e.id)).join("・");
+    verdict.className = "verdict-line";
+    verdict.innerHTML = `一番ズレたのは <b style="color:#ff8a8a">${escapeHtml(loserNames)}</b> — 🍺1杯！`;
+  }
+
+  $("rankList").innerHTML = result.entries.map(e => {
+    const p = playersById.get(e.id);
+    const isYou = p ? p.isYou : false;
+    const perfect = e.factor <= 1.01;
+    const factorHtml = perfect
+      ? '<span class="factor perfect">ピタリ!</span>'
+      : `<span class="factor">×${e.factor < 100 ? e.factor : escapeHtml(formatJp(Math.round(e.factor)))}</span>`;
+    return `
+      <div class="rank-row ${isYou ? "you" : ""} ${e.loser ? "loser" : ""}">
+        <span class="name">${e.crown ? "👑 " : ""}${escapeHtml(nameOf(e.id))}${isYou ? " (あなた)" : ""}</span>
+        <span class="guess-val">${escapeHtml(formatJp(e.value))}</span>
+        ${factorHtml}
+        <span class="beer">${e.loser ? "🍺" : ""}</span>
+      </div>
+    `;
+  }).join("");
+
+  const abstainRow = $("abstainRow");
+  if (result.abstain.length) {
+    abstainRow.style.display = "";
+    abstainRow.textContent = "時間切れ 🍺: " + result.abstain.map(nameOf).join("・");
+  } else {
+    abstainRow.style.display = "none";
+  }
+
+  $("revealPlayerList").innerHTML = serverState.players.map(p => `
+    <div class="player-row ${p.isYou ? "you" : ""}">
+      <span class="name">${escapeHtml(p.name)}${p.isYou ? " (あなた)" : ""}</span>
+      <span class="badge">${p.drinkCount}杯</span>
+    </div>
+  `).join("");
+
+  const isHost = serverState.you === serverState.hostId;
+  $("nextBtn").style.display = isHost ? "" : "none";
+  $("waitingHostResult").style.display = isHost ? "none" : "";
+
+  // Buzz the losers once per round.
+  if (result.round !== lastRevealedRound) {
+    lastRevealedRound = result.round;
+    const me = serverState.players.find(p => p.isYou);
+    if (me && result.losers.includes(me.id) && navigator.vibrate) {
+      try { navigator.vibrate([80, 60, 80]); } catch {}
+    }
+  }
+}
+
+// ===== Event listeners =====
+$("enterBtn").addEventListener("click", () => {
+  const name = $("nameInput").value.trim();
+  let room = $("roomInput").value.trim().toUpperCase();
+  if (!name) { showToast("名前を入力してください"); return; }
+  if (!room) {
+    room = randomRoomCode();
+  } else if (!/^[A-Z0-9]{4,6}$/.test(room)) {
+    showToast("ルームコードは4〜6文字の英数字");
+    return;
+  }
+  requestWakeLock();
+  connect(name, room);
+});
+
+$("startBtn").addEventListener("click", () => send({ type: "start" }));
+$("nextBtn").addEventListener("click", () => send({ type: "start" }));
+
+$("leaveBtn").addEventListener("click", disconnect);
+$("leaveBtn2").addEventListener("click", disconnect);
+
+$("rulesBtn").addEventListener("click", () => $("rulesOverlay").classList.add("show"));
+$("rulesOverlay").addEventListener("click", () => $("rulesOverlay").classList.remove("show"));
+
+document.addEventListener("gesturestart", e => e.preventDefault());
+</script>
+</body>
+</html>
