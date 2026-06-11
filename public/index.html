@@ -302,7 +302,7 @@
     <div class="panel">
       <h2>ルームコード</h2>
       <input id="roomInput" type="text" placeholder="既存ルームのコードを入力（既定値は新規ルーム）" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
-      <div style="margin-top:8px; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.45);">3〜10人</div>
+      <div style="margin-top:8px; font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.45);">2〜10人</div>
     </div>
     <button class="btn btn-primary" id="enterBtn">JOIN</button>
     <button class="btn-link-text" id="rulesBtn">ルールを見る</button>
@@ -315,7 +315,7 @@
       <h2>RULES</h2>
       <dl>
         <dt>進行</dt>
-        <dd>「月まで何km？」みたいな数字クイズが出る。全員が<b>こっそり予想を提出</b>（制限75秒）。</dd>
+        <dd>各自スマホで同じルームコードに JOIN (2〜10人)。「月まで何km？」みたいな数字クイズが出たら、全員が<b>こっそり予想を提出</b>（制限75秒）。</dd>
 
         <dt>判定は「桁」</dt>
         <dd>正解からの差は<b>倍率</b>で測る。正解38万kmに対して「4万km」と「380万km」はどちらも10倍ズレで同じ負け方。ざっくり桁が合っていれば強い。</dd>
@@ -671,9 +671,9 @@ function renderLobby() {
   const status = $("lobbyStatus");
   if (isHost) {
     startBtn.style.display = "";
-    if (players.length < 3) {
+    if (players.length < 2) {
       startBtn.disabled = true;
-      status.textContent = "3人以上で開始できます";
+      status.textContent = "2人以上で開始できます";
     } else {
       startBtn.disabled = false;
       status.textContent = "全員揃ったらSTART";

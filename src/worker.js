@@ -7,7 +7,7 @@ const PHASES = {
   REVEAL: "reveal", // answer revealed, furthest (log scale) drinks
 };
 const MAX_PLAYERS = 10;
-const MIN_PLAYERS = 3;
+const MIN_PLAYERS = 2; // head-to-head works fine: further from the answer drinks
 const GRACE_MS = 15_000;
 const GUESS_MS = 75_000;  // a bit longer than other games — typing big numbers
 const MAX_GUESS = 1e21;
